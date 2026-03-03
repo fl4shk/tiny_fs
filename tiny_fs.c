@@ -169,13 +169,15 @@ static void _tiny_fs_htab_maybe_rehash(void) {
 
         for (size_t j=0; j<prev_buf_size; ++j) {
             tiny_fs_htab_vec_t* temp_prev_vec = tiny_fs_htab->vec + j;
-            for (size_t i=0; i<temp_prev_vec->buf_size; ++i) {
-                tiny_fs_htab_elem_t* item = temp_prev_vec->buf + i;
-                const char* key = item->key;
-                tiny_fs_file_t* to_insert = item->f;
-                _tiny_fs_htab_insert_shared(temp_htab, key, to_insert);
+            if (temp_prev_vec->buf_size > 0) {
+                for (size_t i=0; i<temp_prev_vec->buf_size; ++i) {
+                    tiny_fs_htab_elem_t* item = temp_prev_vec->buf + i;
+                    const char* key = item->key;
+                    tiny_fs_file_t* to_insert = item->f;
+                    _tiny_fs_htab_insert_shared(temp_htab, key, to_insert);
+                }
+                free(temp_prev_vec); 
             }
-            free(temp_prev_vec); 
         }
 
         free(tiny_fs_htab);

@@ -37,8 +37,20 @@ int main(int argc, char** argv) {
 
     memset(buf[1], 0, sizeof(buf[1]));
 
-    f = tiny_fs_fopen("bb", "w");
+    f = tiny_fs_fopen("b", "w");
+    tiny_fs_fwrite(f, to_write[1], sizeof(char) * MY_TEMP_LEN[1]);
     tiny_fs_fclose(f);
+    
+    f = tiny_fs_fopen("b", "r");
+    tiny_fs_fread(f, buf[1], sizeof(char) * MY_TEMP_LEN[1]);
+    buf[1][MY_TEMP_LEN[1]] = '\0';
+    tiny_fs_fclose(f);
+
+    fprintf(
+        stderr,
+        "contents of \"b\": %s\n",
+        buf[1]
+    );
 
     return 0;
 }
