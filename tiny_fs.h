@@ -13,7 +13,7 @@ typedef enum tiny_fs_seek_t
     TINY_FS_SEEK_SET = 0,
 } tiny_fs_seek_t;
 
-#define TINY_FS_INITIAL_WRITE_FILE_SIZE 1024u // change this if you want
+#define TINY_FS_INITIAL_WRITE_FILE_SIZE 1u//1024u // change this if you want
 
 typedef struct tiny_fs_handle_t tiny_fs_handle_t;
 typedef struct tiny_fs_file_t tiny_fs_file_t;
@@ -30,16 +30,41 @@ struct tiny_fs_file_t {
     uint8_t* buf;
     size_t size;
 
-    // make this a doubly-linked list
-    tiny_fs_file_t* prev;
-    tiny_fs_file_t* next;
 };
 struct tiny_fs_handle_t {
     tiny_fs_file_t* f;
     size_t pos;
 };
 
-extern tiny_fs_file_t tiny_fs_head;
+typedef struct tiny_fs_htab_elem_t tiny_fs_htab_elem_t;
+typedef struct tiny_fs_htab_vec_t tiny_fs_htab_vec_t;
+typedef struct tiny_fs_htab_t tiny_fs_htab_t;
+
+struct tiny_fs_htab_elem_t {
+    //const char* key;
+    tiny_fs_file_t* f;
+
+    //// make this a doubly-linked list
+    //tiny_fs_htab_elem_t* prev;
+    //tiny_fs_htab_elem_t* next; 
+};
+struct tiny_fs_htab_vec_t {
+    tiny_fs_htab_elem_t* buf;
+    size_t buf_size;
+};
+struct tiny_fs_htab_t {
+    tiny_fs_htab_vec_t* vec;
+    size_t vec_size_log2;
+    size_t most_inner_size;
+    //size_t total_size;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif      // __cplusplus
+
+//extern tiny_fs_file_t tiny_fs_head;
+extern tiny_fs_htab_t* tiny_fs_htab;
 
 void* tiny_fs_file_init(const char* filename, uint8_t* buf, size_t size);
 void* tiny_fs_fopen(const char* filename, const char* mode);
@@ -49,5 +74,9 @@ int tiny_fs_fwrite(void* handle, const void* buf, int byte_count);
 int tiny_fs_fseek(void* handle, int offset, tiny_fs_seek_t origin);
 int tiny_fs_ftell(void* handle);
 int tiny_fs_feof(void* handle);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif      // __cplusplus
 
 #endif      // TINY_FS_H

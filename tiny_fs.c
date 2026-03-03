@@ -1,37 +1,174 @@
 #include "tiny_fs.h"
 
-tiny_fs_file_t tiny_fs_head = {
-    //.is_write=false,
-    .filename=NULL,
-    .buf=NULL,
-    .size=0u,
-    .prev=&tiny_fs_head,
-    .next=&tiny_fs_head,
-};
-
-static void _tiny_fs_file_insert_after(
-    tiny_fs_file_t* restrict where,
-    tiny_fs_file_t* restrict to_insert
+static size_t _tiny_fs_str_hash(
+    const char* key, size_t mod_lshift
 ) {
-    //tiny_fs_file_t* old_where_prev = where->prev;
-    tiny_fs_file_t* old_where_next = where->next;
-
-    where->next = to_insert;
-    to_insert->prev = where;
-    to_insert->next = old_where_next;
-    old_where_next->prev = to_insert;
+    size_t ret = 0;
+    const size_t TEMP_KEY_LEN = strlen(key);
+    const size_t MASK = (((size_t)1ul) << mod_lshift) - 1;
+    for (size_t i=0; i<TEMP_KEY_LEN; ++i) {
+        ret = (ret + (((size_t)key[i]) << (size_t)5u)) & MASK;
+    }
+    return ret;
 }
 
-static void _tiny_fs_file_insert_before(
-    tiny_fs_file_t* restrict where,
-    tiny_fs_file_t* restrict to_insert
+#define TINY_FS_HTAB_INITIAL_SIZE_LOG2 ((size_t)8u)
+//#define TINY_FS_HTAB_INITIAL_SIZE
+//    (((size_t)1u) << (TINY_FS_HTAB_INITIAL_SIZE_LOG2))
+//tiny_fs_htab_t tiny_fs_htab = {
+//    .vec=NULL,
+//    .vec_size_log2=TINY_FS_HTAB_INITIAL_SIZE_LOG2,
+//    .most_inner_size=((size_t)0u),
+//};
+tiny_fs_htab_t* tiny_fs_htab = NULL;
+
+//static void _tiny_fs_htab_elem_insert_after(
+//    tiny_fs_htab_elem_t* restrict where,
+//    tiny_fs_htab_elem_t* restrict to_insert
+//) {
+//    tiny_fs_htab_elem_t* old_where_next = where->next;
+//
+//    where->next = to_insert;
+//    to_insert->prev = where;
+//    to_insert->next = old_where_next;
+//    old_where_next->prev = to_insert;
+//}
+//
+//static void _tiny_fs_htab_elem_insert_before(
+//    tiny_fs_htab_elem_t* restrict where,
+//    tiny_fs_htab_elem_t* restrict to_insert
+//) {
+//    _tiny_fs_htab_elem_insert_after(
+//        // GCC optimizes this pretty well!
+//        where->prev,
+//        to_insert
+//    );
+//}
+
+//static tiny_fs_htab_elem_t** _tiny_fs_htab_elem_collect_all(void) {
+//    tiny_fs_htab_elem_t** ret = NULL;
+//    return ret;
+//    //tiny_fs_htab_elem_t* ret = NULL;
+//    //tiny_fs_htab_elem_t* ret = malloc;
+//    //return ret;
+//}
+
+static tiny_fs_htab_vec_t* _tiny_fs_htab_vec_search_shared(
+    tiny_fs_htab_t* some_htab, const char* key
 ) {
-    _tiny_fs_file_insert_after(
-        // GCC optimizes this pretty well!
-        where->prev,
-        to_insert
+    const size_t hash = _tiny_fs_str_hash(
+        key,
+        some_htab->vec_size_log2
     );
+    tiny_fs_htab_vec_t* ret = some_htab->vec + hash;
+    return ret;
 }
+static tiny_fs_file_t* _tiny_fs_htab_search_shared(
+    tiny_fs_htab_t* some_htab, const char* key
+) {
+    tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
+        some_htab,
+        key
+    );
+    for (size_t i=0; i<vec->buf_size; ++i) {
+        tiny_fs_htab_elem_t* item = vec->buf + i;
+        if (strcmp(item->f->filename, key) == 0) {
+            return item->f;
+        }
+    }
+    return NULL;
+}
+static void _tiny_fs_htab_insert_shared(
+    tiny_fs_htab_t* some_htab,
+    tiny_fs_file_t* to_insert
+) {
+    //const size_t hash = _tiny_fs_str_hash
+    tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
+        some_htab,
+        to_insert->filename
+    );
+    const size_t old_last_idx = vec->buf_size;
+    ++vec->buf_size;
+    vec->buf = realloc(
+        vec->buf,
+        sizeof(tiny_fs_htab_elem_t) * vec->buf_size
+    );
+    //vec->buf[old_last_idx].key = to_insert->filename;
+    //vec->buf[old_last_idx].value = (void*)to_insert;
+    vec->buf[old_last_idx].f = to_insert;
+    if (some_htab->most_inner_size < vec->buf_size) {
+        some_htab->most_inner_size = vec->buf_size;
+    }
+    //++some_htab->total_size;
+}
+
+static void _tiny_fs_htab_maybe_rehash(void) {
+    if (tiny_fs_htab == NULL) {
+        tiny_fs_htab = (tiny_fs_htab_t*)calloc(
+            1ul,
+            sizeof(tiny_fs_htab_t)
+        );
+        tiny_fs_htab->vec_size_log2 = TINY_FS_HTAB_INITIAL_SIZE_LOG2;
+        tiny_fs_htab->most_inner_size = (size_t)0u;
+
+        tiny_fs_htab->vec = (
+            (tiny_fs_htab_vec_t*)calloc(
+                ((size_t)1ul) << tiny_fs_htab->vec_size_log2,
+                sizeof(tiny_fs_htab_vec_t)
+            )
+        );
+        return;
+    }
+
+    const size_t prev_buf_size_log2 = tiny_fs_htab->vec_size_log2;
+    const size_t prev_buf_size = ((size_t)1u) << prev_buf_size_log2;
+
+    if (tiny_fs_htab->most_inner_size > (prev_buf_size >> 1)) {
+        // at this point we decide to rehash...
+        // maybe having (prev_buf_size / 2)
+        // is enough of a size to rehash the hash table?
+        // I don't know how well this will work in practice.
+        // It's admittedly an estimated guess as to something
+        // that might work somewhat well.
+
+        const size_t next_buf_size_log2 = prev_buf_size_log2 + 1;
+        const size_t next_buf_size = ((size_t)1u) << next_buf_size_log2;
+
+        tiny_fs_htab_t* temp_htab = (tiny_fs_htab_t*)malloc(
+            // No need to zero-initialize the bytes this time.
+            // i.e. no need for `calloc()` here.
+            sizeof(tiny_fs_htab_t)
+        );
+        temp_htab->vec = (tiny_fs_htab_vec_t*)calloc(
+            next_buf_size,
+            sizeof(tiny_fs_htab_vec_t)
+        );
+        temp_htab->vec_size_log2 = next_buf_size_log2;
+        temp_htab->most_inner_size = tiny_fs_htab->most_inner_size;
+
+        free(tiny_fs_htab);
+        tiny_fs_htab = temp_htab;
+
+    }
+}
+static inline void _tiny_fs_htab_insert(tiny_fs_file_t* to_insert) {
+    _tiny_fs_htab_insert_shared(tiny_fs_htab, to_insert);
+}
+
+static inline tiny_fs_file_t* _tiny_fs_htab_search(const char* key) {
+    return _tiny_fs_htab_search_shared(tiny_fs_htab, key);
+}
+
+
+//tiny_fs_file_t tiny_fs_head = {
+//    //.is_write=false,
+//    .filename=NULL,
+//    .buf=NULL,
+//    .size=0u,
+//    .prev=&tiny_fs_head,
+//    .next=&tiny_fs_head,
+//};
+
 //static void _tiny_fs_file_unlink(tiny_fs_file_t* restrict where) {
 //    tiny_fs_file_t* old_where_prev;
 //    tiny_fs_file_t* old_where_next;
@@ -39,19 +176,21 @@ static void _tiny_fs_file_insert_before(
 //    old_where_next->prev = old_where_prev;
 //}
 
-static tiny_fs_file_t* _tiny_fs_file_search(const char* filename) {
-    for (
-        tiny_fs_file_t* item=tiny_fs_head.next;
-        item!=&tiny_fs_head;
-        item=item->next
-    ) {
-        if (strcmp(item->filename, filename) == 0) {
-            return item;
-        }
-    }
-    return NULL;
+static inline tiny_fs_file_t* _tiny_fs_file_search(const char* filename) {
+    return (tiny_fs_file_t*)_tiny_fs_htab_search(filename);
+    //for (
+    //    tiny_fs_file_t* item=tiny_fs_head.next;
+    //    item!=&tiny_fs_head;
+    //    item=item->next
+    //) {
+    //    if (strcmp(item->filename, filename) == 0) {
+    //        return item;
+    //    }
+    //}
+    //return NULL;
 }
 void* tiny_fs_file_init(const char* filename, uint8_t* buf, size_t size) {
+    // NOTE: this is similar conceptually to `fmemopen()`
     tiny_fs_file_t* temp = _tiny_fs_file_search(filename);
     if (temp != NULL) {
         return NULL;
@@ -63,9 +202,11 @@ void* tiny_fs_file_init(const char* filename, uint8_t* buf, size_t size) {
     temp->filename = filename;
     temp->buf = buf;
     temp->size = size;
-    temp->prev = NULL;
-    temp->next = NULL;
-    _tiny_fs_file_insert_before(&tiny_fs_head, temp);
+    //temp->prev = NULL;
+    //temp->next = NULL;
+    //_tiny_fs_file_insert_before(&tiny_fs_head, temp);
+    _tiny_fs_htab_insert(temp);
+    return temp;
 }
 
 static tiny_fs_file_t* _tiny_fs_file_maybe_copy_buf(
@@ -129,7 +270,8 @@ void* tiny_fs_fopen(const char* filename, const char* mode) {
     ret->f = f;
     //ret->is_write = is_write;
     ret->pos = 0u;
-    _tiny_fs_file_insert_before(&tiny_fs_head, ret->f);
+    //_tiny_fs_file_insert_before(&tiny_fs_head, ret->f);
+    _tiny_fs_htab_insert(ret->f);
 
     return ret;
 }
@@ -200,4 +342,8 @@ int tiny_fs_ftell(void* handle) {
 int tiny_fs_feof(void* handle) {
     tiny_fs_handle_t* self = (tiny_fs_handle_t*)handle;
     return self->pos >= self->f->size;
+}
+
+int main(int argc, char** argv) {
+    return 0;
 }

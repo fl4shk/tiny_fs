@@ -1,0 +1,4 @@
+*.ignore
+*.o
+*.elf
+*-dis.s
