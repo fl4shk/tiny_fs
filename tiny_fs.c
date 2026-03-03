@@ -89,10 +89,17 @@ static void _tiny_fs_htab_insert_shared(
     );
     const size_t old_last_idx = vec->buf_size;
     ++vec->buf_size;
-    vec->buf = realloc(
-        vec->buf,
-        sizeof(tiny_fs_htab_elem_t) * vec->buf_size
-    );
+    if (vec->buf == NULL) {
+        vec->buf = realloc(
+            vec->buf,
+            sizeof(tiny_fs_htab_elem_t) * vec->buf_size
+        );
+    } else {
+        vec->buf = calloc(
+            vec->buf_size,
+            sizeof(tiny_fs_htab_elem_t)
+        );
+    }
     //vec->buf[old_last_idx].key = to_insert->filename;
     //vec->buf[old_last_idx].value = (void*)to_insert;
     vec->buf[old_last_idx].f = to_insert;
@@ -136,7 +143,7 @@ static void _tiny_fs_htab_maybe_rehash(void) {
 
         tiny_fs_htab_t* temp_htab = (tiny_fs_htab_t*)malloc(
             // No need to zero-initialize the bytes this time.
-            // i.e. no need for `calloc()` here.
+            // (i.e. no need for `calloc()` here.)
             sizeof(tiny_fs_htab_t)
         );
         temp_htab->vec = (tiny_fs_htab_vec_t*)calloc(
@@ -146,12 +153,21 @@ static void _tiny_fs_htab_maybe_rehash(void) {
         temp_htab->vec_size_log2 = next_buf_size_log2;
         temp_htab->most_inner_size = tiny_fs_htab->most_inner_size;
 
+        for (size_t j=0; j<prev_buf_size; ++j) {
+            tiny_fs_htab_vec_t* temp_prev_vec = tiny_fs_htab->vec + j;
+            for (size_t i=0; i<temp_prev_vec->buf_size; ++i) {
+                tiny_fs_file_t* to_insert = temp_prev_vec->buf[i].f;
+                _tiny_fs_htab_insert_shared(temp_htab, to_insert);
+            }
+            free(temp_prev_vec); 
+        }
+
         free(tiny_fs_htab);
         tiny_fs_htab = temp_htab;
-
     }
 }
 static inline void _tiny_fs_htab_insert(tiny_fs_file_t* to_insert) {
+    _tiny_fs_htab_maybe_rehash();
     _tiny_fs_htab_insert_shared(tiny_fs_htab, to_insert);
 }
 
