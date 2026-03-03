@@ -42,7 +42,7 @@ typedef struct tiny_fs_htab_t tiny_fs_htab_t;
 
 struct tiny_fs_htab_elem_t {
     const char* key;
-    void* f;
+    void* v;
 
     //// make this a doubly-linked list
     //tiny_fs_htab_elem_t* prev;
