@@ -1,18 +1,22 @@
 #include "tiny_fs.h"
+#include <stdio.h>
 
-static size_t _tiny_fs_str_hash(
-    const char* key, size_t mod_lshift
+static uint32_t _tiny_fs_str_hash(
+    const char* key, uint32_t mod_lshift
 ) {
-    size_t ret = 0;
-    const size_t TEMP_KEY_LEN = strlen(key);
-    const size_t MASK = (((size_t)1ul) << mod_lshift) - 1;
-    for (size_t i=0; i<TEMP_KEY_LEN; ++i) {
-        ret = (ret + (((size_t)key[i]) << (size_t)5u)) & MASK;
+    uint32_t ret = 0;
+    const uint32_t TEMP_KEY_LEN = strlen(key);
+    const uint32_t MASK = (((uint32_t)1ul) << mod_lshift) - 1;
+    for (uint32_t i=0; i<TEMP_KEY_LEN; ++i) {
+        //ret = (ret + (((uint32_t)key[i]) << (uint32_t)5u)) & MASK;
+        ret ^= (uint32_t)key[i];
+        ret = (ret << (uint32_t)5u) | (ret >> (uint32_t)27u);
+        ret &= MASK;
     }
     return ret;
 }
 
-#define TINY_FS_HTAB_INITIAL_SIZE_LOG2 ((size_t)8u)
+#define TINY_FS_HTAB_INITIAL_SIZE_LOG2 ((size_t)2u/*8u*/)
 //#define TINY_FS_HTAB_INITIAL_SIZE
 //    (((size_t)1u) << (TINY_FS_HTAB_INITIAL_SIZE_LOG2))
 //tiny_fs_htab_t tiny_fs_htab = {
@@ -53,9 +57,12 @@ tiny_fs_htab_t* tiny_fs_htab = NULL;
 //    //return ret;
 //}
 
-static tiny_fs_htab_vec_t* tiny_fs_htab_vec_search_shared(
+static tiny_fs_htab_vec_t* _tiny_fs_htab_vec_search_shared(
     tiny_fs_htab_t* some_htab, const char* key
 ) {
+    if (some_htab == NULL) {
+        return NULL;
+    }
     const size_t hash = _tiny_fs_str_hash(
         key,
         some_htab->vec_size_log2
@@ -69,7 +76,7 @@ static tiny_fs_file_t* _tiny_fs_htab_search_shared(
     if (some_htab == NULL) {
         return NULL;
     }
-    tiny_fs_htab_vec_t* vec = tiny_fs_htab_vec_search_shared(
+    tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
         some_htab,
         key
     );
@@ -87,7 +94,7 @@ static void _tiny_fs_htab_insert_shared(
     tiny_fs_file_t* to_insert
 ) {
     //const size_t hash = _tiny_fs_str_hash
-    tiny_fs_htab_vec_t* vec = tiny_fs_htab_vec_search_shared(
+    tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
         some_htab,
         key//,
         //to_insert->filename
@@ -95,14 +102,14 @@ static void _tiny_fs_htab_insert_shared(
     const size_t old_last_idx = vec->buf_size;
     ++vec->buf_size;
     if (vec->buf == NULL) {
-        vec->buf = realloc(
-            vec->buf,
-            sizeof(tiny_fs_htab_elem_t) * vec->buf_size
-        );
-    } else {
         vec->buf = calloc(
             vec->buf_size,
             sizeof(tiny_fs_htab_elem_t)
+        );
+    } else {
+        vec->buf = realloc(
+            vec->buf,
+            sizeof(tiny_fs_htab_elem_t) * vec->buf_size
         );
     }
     //vec->buf[old_last_idx].key = to_insert->filename;

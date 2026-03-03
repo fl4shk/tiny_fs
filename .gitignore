@@ -4,3 +4,4 @@
 *-asm.s
 *-dis.s
 test_tiny_fs
+.gdb_history
