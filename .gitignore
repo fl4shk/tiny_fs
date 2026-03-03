@@ -1,4 +1,5 @@
 *.ignore
 *.o
 *.elf
+*-asm.s
 *-dis.s

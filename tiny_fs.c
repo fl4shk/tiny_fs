@@ -72,7 +72,7 @@ static tiny_fs_file_t* _tiny_fs_htab_search_shared(
     );
     for (size_t i=0; i<vec->buf_size; ++i) {
         tiny_fs_htab_elem_t* item = vec->buf + i;
-        if (strcmp(item->f->filename, key) == 0) {
+        if (strcmp(item->key, key) == 0) {
             return item->f;
         }
     }
@@ -80,12 +80,14 @@ static tiny_fs_file_t* _tiny_fs_htab_search_shared(
 }
 static void _tiny_fs_htab_insert_shared(
     tiny_fs_htab_t* some_htab,
+    const char* key,
     tiny_fs_file_t* to_insert
 ) {
     //const size_t hash = _tiny_fs_str_hash
     tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
         some_htab,
-        to_insert->filename
+        key//,
+        //to_insert->filename
     );
     const size_t old_last_idx = vec->buf_size;
     ++vec->buf_size;
@@ -156,8 +158,10 @@ static void _tiny_fs_htab_maybe_rehash(void) {
         for (size_t j=0; j<prev_buf_size; ++j) {
             tiny_fs_htab_vec_t* temp_prev_vec = tiny_fs_htab->vec + j;
             for (size_t i=0; i<temp_prev_vec->buf_size; ++i) {
-                tiny_fs_file_t* to_insert = temp_prev_vec->buf[i].f;
-                _tiny_fs_htab_insert_shared(temp_htab, to_insert);
+                tiny_fs_htab_elem_t* item = temp_prev_vec->buf + i;
+                const char* key = item->key;
+                tiny_fs_file_t* to_insert = item->f;
+                _tiny_fs_htab_insert_shared(temp_htab, key, to_insert);
             }
             free(temp_prev_vec); 
         }
@@ -166,9 +170,12 @@ static void _tiny_fs_htab_maybe_rehash(void) {
         tiny_fs_htab = temp_htab;
     }
 }
-static inline void _tiny_fs_htab_insert(tiny_fs_file_t* to_insert) {
+static inline void _tiny_fs_htab_insert(
+    const char* key,
+    tiny_fs_file_t* to_insert
+) {
     _tiny_fs_htab_maybe_rehash();
-    _tiny_fs_htab_insert_shared(tiny_fs_htab, to_insert);
+    _tiny_fs_htab_insert_shared(tiny_fs_htab, key, to_insert);
 }
 
 static inline tiny_fs_file_t* _tiny_fs_htab_search(const char* key) {
@@ -215,13 +222,13 @@ void* tiny_fs_file_init(const char* filename, uint8_t* buf, size_t size) {
 
     temp->was_made_by_file_init = true;
 
-    temp->filename = filename;
+    //temp->filename = filename;
     temp->buf = buf;
     temp->size = size;
     //temp->prev = NULL;
     //temp->next = NULL;
     //_tiny_fs_file_insert_before(&tiny_fs_head, temp);
-    _tiny_fs_htab_insert(temp);
+    _tiny_fs_htab_insert(filename, temp);
     return temp;
 }
 
@@ -260,7 +267,7 @@ void* tiny_fs_fopen(const char* filename, const char* mode) {
             return NULL;
         }
         f = (tiny_fs_file_t*)malloc(sizeof(tiny_fs_file_t));
-        f->filename = filename;
+        //f->filename = filename;
         f->buf = (uint8_t*)malloc(
             sizeof(uint8_t) * TINY_FS_INITIAL_WRITE_FILE_SIZE
         );
@@ -287,7 +294,7 @@ void* tiny_fs_fopen(const char* filename, const char* mode) {
     //ret->is_write = is_write;
     ret->pos = 0u;
     //_tiny_fs_file_insert_before(&tiny_fs_head, ret->f);
-    _tiny_fs_htab_insert(ret->f);
+    _tiny_fs_htab_insert(filename, ret->f);
 
     return ret;
 }

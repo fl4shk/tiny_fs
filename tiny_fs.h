@@ -26,7 +26,7 @@ struct tiny_fs_file_t {
     // * we assume somewhat short-ish paths
     // * only absolute paths (i.e. no relative paths)
     // * thus `filename` specifies the whole filename!
-    const char* filename;
+    //const char* filename;
     uint8_t* buf;
     size_t size;
 
@@ -41,8 +41,8 @@ typedef struct tiny_fs_htab_vec_t tiny_fs_htab_vec_t;
 typedef struct tiny_fs_htab_t tiny_fs_htab_t;
 
 struct tiny_fs_htab_elem_t {
-    //const char* key;
-    tiny_fs_file_t* f;
+    const char* key;
+    void* f;
 
     //// make this a doubly-linked list
     //tiny_fs_htab_elem_t* prev;
