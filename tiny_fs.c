@@ -53,7 +53,7 @@ tiny_fs_htab_t* tiny_fs_htab = NULL;
 //    //return ret;
 //}
 
-static tiny_fs_htab_vec_t* _tiny_fs_htab_vec_search_shared(
+static tiny_fs_htab_vec_t* tiny_fs_htab_vec_search_shared(
     tiny_fs_htab_t* some_htab, const char* key
 ) {
     const size_t hash = _tiny_fs_str_hash(
@@ -66,7 +66,10 @@ static tiny_fs_htab_vec_t* _tiny_fs_htab_vec_search_shared(
 static tiny_fs_file_t* _tiny_fs_htab_search_shared(
     tiny_fs_htab_t* some_htab, const char* key
 ) {
-    tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
+    if (some_htab == NULL) {
+        return NULL;
+    }
+    tiny_fs_htab_vec_t* vec = tiny_fs_htab_vec_search_shared(
         some_htab,
         key
     );
@@ -84,7 +87,7 @@ static void _tiny_fs_htab_insert_shared(
     tiny_fs_file_t* to_insert
 ) {
     //const size_t hash = _tiny_fs_str_hash
-    tiny_fs_htab_vec_t* vec = _tiny_fs_htab_vec_search_shared(
+    tiny_fs_htab_vec_t* vec = tiny_fs_htab_vec_search_shared(
         some_htab,
         key//,
         //to_insert->filename
@@ -104,7 +107,9 @@ static void _tiny_fs_htab_insert_shared(
     }
     //vec->buf[old_last_idx].key = to_insert->filename;
     //vec->buf[old_last_idx].value = (void*)to_insert;
-    vec->buf[old_last_idx].f = to_insert;
+    tiny_fs_htab_elem_t* temp = vec->buf + old_last_idx;
+    temp->key = key;
+    temp->f = to_insert;
     if (some_htab->most_inner_size < vec->buf_size) {
         some_htab->most_inner_size = vec->buf_size;
     }
@@ -365,8 +370,4 @@ int tiny_fs_ftell(void* handle) {
 int tiny_fs_feof(void* handle) {
     tiny_fs_handle_t* self = (tiny_fs_handle_t*)handle;
     return self->pos >= self->f->size;
-}
-
-int main(int argc, char** argv) {
-    return 0;
 }
