@@ -183,25 +183,6 @@ static inline tiny_fs_file_t* _tiny_fs_htab_search(const char* key) {
 static inline tiny_fs_file_t* _tiny_fs_file_search(const char* filename) {
     return (tiny_fs_file_t*)_tiny_fs_htab_search(filename);
 }
-void* tiny_fs_file_init(const char* filename, uint8_t* buf, size_t size) {
-    // NOTE: this is similar conceptually to `fmemopen()`
-    tiny_fs_file_t* temp = _tiny_fs_file_search(filename);
-    if (temp != NULL) {
-        return NULL;
-    }
-    temp = (tiny_fs_file_t*)malloc(sizeof(tiny_fs_file_t));
-
-    temp->was_made_by_file_init = true;
-
-    //temp->filename = filename;
-    temp->buf = buf;
-    temp->size = size;
-    //temp->prev = NULL;
-    //temp->next = NULL;
-    //_tiny_fs_file_insert_before(&tiny_fs_head, temp);
-    _tiny_fs_htab_insert(filename, temp);
-    return temp;
-}
 
 static tiny_fs_file_t* _tiny_fs_file_maybe_copy_buf(
     tiny_fs_file_t* restrict some_file
@@ -217,7 +198,49 @@ static tiny_fs_file_t* _tiny_fs_file_maybe_copy_buf(
 
     return ret;
 }
+static inline void* _tiny_fs_file_create_finish(
+    const char* filename, tiny_fs_file_t* f
+) {
+    //f->is_write = is_write;
+    tiny_fs_handle_t* ret = (
+        (tiny_fs_handle_t*)malloc(sizeof(tiny_fs_handle_t))
+    );
+    ret->f = f;
+    //ret->is_write = is_write;
+    ret->pos = 0u;
+    //_tiny_fs_file_insert_before(&tiny_fs_head, ret->f);
+    _tiny_fs_htab_insert(filename, ret->f);
 
+    return ret;
+}
+
+void* tiny_fs_file_init(const char* filename, uint8_t* buf, size_t size) {
+    // NOTE: this is similar conceptually to `fmemopen()`
+    tiny_fs_file_t* f = _tiny_fs_file_search(filename);
+    if (f != NULL) {
+        return NULL;
+    }
+    f = (tiny_fs_file_t*)malloc(sizeof(tiny_fs_file_t));
+
+    f->was_made_by_file_init = true;
+
+    //f->filename = filename;
+    f->buf = buf;
+    f->size = size;
+    //f->prev = NULL;
+    //f->next = NULL;
+    //_tiny_fs_file_insert_before(&tiny_fs_head, f);
+
+    //tiny_fs_handle_t* ret = (
+    //    (tiny_fs_handle_t*)malloc(sizeof(tiny_fs_handle_t))
+    //);
+    //ret->f = f;
+    //ret->pos = 0u;
+    //_tiny_fs_htab_insert(filename, ret->f);
+
+    //return ret;
+    return _tiny_fs_file_create_finish(filename, f);
+}
 
 void* tiny_fs_fopen(const char* filename, const char* mode) {
     bool is_write;
@@ -257,17 +280,7 @@ void* tiny_fs_fopen(const char* filename, const char* mode) {
         }
     }
 
-    //f->is_write = is_write;
-    tiny_fs_handle_t* ret = (
-        (tiny_fs_handle_t*)malloc(sizeof(tiny_fs_handle_t))
-    );
-    ret->f = f;
-    //ret->is_write = is_write;
-    ret->pos = 0u;
-    //_tiny_fs_file_insert_before(&tiny_fs_head, ret->f);
-    _tiny_fs_htab_insert(filename, ret->f);
-
-    return ret;
+    return _tiny_fs_file_create_finish(filename, f);
 }
 
 void tiny_fs_fclose(void* handle) {

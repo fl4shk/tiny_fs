@@ -6,16 +6,18 @@
 int main(int argc, char** argv) {
     void* f = tiny_fs_fopen("aa", "w");
 
-    #define TO_WRITE_LEN 2
+    #define TO_WRITE_LEN 3
 
     const char* to_write[TO_WRITE_LEN] = {
         "This is a test!",
         "Time for some Quirky Questions!",
+        "Oh where... is my hairbrush!",
     };
 
     const size_t MY_TEMP_LEN[TO_WRITE_LEN] = {
         strlen(to_write[0]),
         strlen(to_write[1]),
+        strlen(to_write[2]),
     };
 
     tiny_fs_fwrite(f, to_write[0], sizeof(char) * MY_TEMP_LEN[0]);
@@ -51,6 +53,13 @@ int main(int argc, char** argv) {
         "contents of \"b\": %s\n",
         buf[1]
     );
+
+    //snprintf(buf[2], MY_TEST_BUF_LEN, to_write[2]);
+    const char* temp_file_name = "./my_file.txt";
+    strncpy(buf[2], to_write[2], MY_TEST_BUF_LEN);
+    f = tiny_fs_file_init(temp_file_name, buf[2], MY_TEMP_LEN[2]);
+    tiny_fs_fclose(f);
+
 
     return 0;
 }
