@@ -57,7 +57,19 @@ int main(int argc, char** argv) {
     //snprintf(buf[2], MY_TEST_BUF_LEN, to_write[2]);
     const char* temp_file_name = "./my_file.txt";
     strncpy(buf[2], to_write[2], MY_TEST_BUF_LEN);
+
     f = tiny_fs_file_init(temp_file_name, buf[2], MY_TEMP_LEN[2]);
+    tiny_fs_fclose(f);
+
+    f = tiny_fs_fopen(temp_file_name, "r");
+    tiny_fs_fread(f, buf[0], sizeof(char) * MY_TEST_BUF_LEN);
+    buf[0][MY_TEST_BUF_LEN - 1] = '\0';
+    fprintf(
+        stderr,
+        "contents of \"%s\": %s\n",
+        temp_file_name,
+        buf[0]
+    );
     tiny_fs_fclose(f);
 
 
