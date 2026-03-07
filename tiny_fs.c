@@ -148,7 +148,8 @@ static void _tiny_fs_htab_maybe_rehash(void) {
             sizeof(tiny_fs_htab_vec_t)
         );
         temp_htab->vec_size_log2 = next_buf_size_log2;
-        temp_htab->most_inner_size = tiny_fs_htab->most_inner_size;
+        //temp_htab->most_inner_size = tiny_fs_htab->most_inner_size;
+        temp_htab->most_inner_size = 0u;
 
         for (size_t j=0; j<prev_buf_size; ++j) {
             tiny_fs_htab_vec_t* temp_prev_vec = tiny_fs_htab->vec + j;
